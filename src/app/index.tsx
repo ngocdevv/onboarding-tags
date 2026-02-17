@@ -1,4 +1,4 @@
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import PhysicsWorld from '../components/PhysicsWorld';
 
 export default function HomeScreen() {

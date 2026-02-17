@@ -1,18 +1,24 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useWindowDimensions, Platform } from 'react-native';
+import { useWindowDimensions, Platform, View } from 'react-native';
 import { Canvas, Group, RoundedRect, Text, matchFont, vec, LinearGradient, Shadow } from '@shopify/react-native-skia';
 import Matter from 'matter-js';
 import { TAGS } from '../constants/Tags';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 // Physics Configuration
 const ENGINE_UPDATE_DELTA = 1000 / 60;
-const TAG_WIDTH = 100; // Adjusted for better screen fit
+const TAG_WIDTH = 100;
 const TAG_HEIGHT = 44;
 const TAG_RADIUS = 22;
 
 export default function PhysicsWorld() {
     const { width, height } = useWindowDimensions();
     const [bodies, setBodies] = useState<Matter.Body[]>([]);
+    const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+
+    // Ref to access physics engine in callbacks without closures
+    const [physicsRef, setPhysicsRef] = useState<{ engine: Matter.Engine, world: Matter.World } | null>(null);
 
     // Load System Font
     const font = useMemo(() => {
@@ -29,16 +35,10 @@ export default function PhysicsWorld() {
         // 1. Setup Matter.js Engine
         const engine = Matter.Engine.create();
         const world = engine.world;
-        engine.gravity.y = 0.8; // Slightly reduced gravity for "floaty" feel
+        engine.gravity.y = 0.8;
 
         // 2. Setup Boundaries
-        // Ground needs to be thick so items don't tunnel through
-        const ground = Matter.Bodies.rectangle(width / 2, height - 100, width, 200, {
-            isStatic: true,
-            label: 'Ground'
-        });
-
-        // Walls
+        const ground = Matter.Bodies.rectangle(width / 2, height - 100, width, 200, { isStatic: true, label: 'Ground' });
         const wallThickness = 100;
         const leftWall = Matter.Bodies.rectangle(0 - wallThickness / 2, height / 2, wallThickness, height * 2, { isStatic: true });
         const rightWall = Matter.Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height * 2, { isStatic: true });
@@ -47,55 +47,37 @@ export default function PhysicsWorld() {
 
         // 3. Create Tag Bodies
         const tagBodies: Matter.Body[] = [];
-
         TAGS.forEach((tag, index) => {
-            // Random starting X
             const x = Math.random() * (width - 100) + 50;
-            // Staggered Y starting height (mostly above screen)
             const y = -200 - (index * 80);
-
-            // Create Body
             const body = Matter.Bodies.rectangle(x, y, TAG_WIDTH, TAG_HEIGHT, {
                 chamfer: { radius: TAG_RADIUS },
-                restitution: 0.6, // Bounciness
+                restitution: 0.6,
                 friction: 0.5,
                 frictionAir: 0.02,
                 label: tag.label,
-                angle: (Math.random() - 0.5) * 0.5, // Slight random initial rotation
-                // Custom render properties specifically for our loop
+                angle: (Math.random() - 0.5) * 0.5,
                 plugin: {
+                    id: tag.id,
                     color: tag.color,
                     label: tag.label,
                     icon: tag.icon
                 }
             });
-
             tagBodies.push(body);
         });
-
-        // Add bodies staggered or all at once? 
-        // MatterJS can handle them all being added, gravity will pull them down.
-        // To simulate the video's "raining" effect more precisely, we can add them to the world over time.
-        // For React State simplicity, let's add them all but check their positions.
-        // Actually, adding them all is fine because their initial Y is staggered.
         Matter.World.add(world, tagBodies);
+
+        setPhysicsRef({ engine, world });
 
         // 4. Game Loop
         let running = true;
         const loop = () => {
             if (!running) return;
-
-            // Update Physics
             Matter.Engine.update(engine, ENGINE_UPDATE_DELTA);
-
-            // Update State
-            // Optimization: In production, do NOT set state here. Map bodies to SharedValues.
-            // But for this prototype to work immediately without complex boilerplate:
             setBodies([...Matter.Composite.allBodies(world)]);
-
             requestAnimationFrame(loop);
         };
-
         requestAnimationFrame(loop);
 
         return () => {
@@ -104,61 +86,94 @@ export default function PhysicsWorld() {
         };
     }, [width, height]);
 
-    if (!font) {
-        return null; // Or a loading view
-    }
+
+    // Handle Tap Logic (runs on JS thread)
+    const handleTap = (x: number, y: number) => {
+        if (!physicsRef) return;
+
+        const allBodies = Matter.Composite.allBodies(physicsRef.world);
+        const clickedBodies = Matter.Query.point(allBodies, { x, y });
+        const clickedBody = clickedBodies.find(b => !b.isStatic);
+
+        if (clickedBody) {
+            const tagId = clickedBody.plugin.id;
+            setSelectedTagIds(prev => {
+                const next = new Set(prev);
+                if (next.has(tagId)) {
+                    next.delete(tagId);
+                } else {
+                    next.add(tagId);
+                }
+                return next;
+            });
+
+            // Feedback impulse
+            Matter.Body.applyForce(clickedBody, clickedBody.position, { x: 0, y: -0.05 });
+        }
+    };
+
+    // Gesture Definition
+    const tapGesture = Gesture.Tap()
+        .onStart((e) => {
+            runOnJS(handleTap)(e.x, e.y);
+        });
+
+    if (!font) return null;
 
     return (
-        <Canvas style={{ flex: 1 }}>
-            {bodies.map((body, index) => {
-                if (body.isStatic) return null; // Don't render walls
+        <GestureDetector gesture={tapGesture}>
+            <Canvas style={{ flex: 1 }}>
+                {bodies.map((body, index) => {
+                    if (body.isStatic) return null;
 
-                const { x, y } = body.position;
-                const { angle } = body;
-                const color = body.plugin.color || '#ccc';
-                const label = body.plugin.label || '';
+                    const { x, y } = body.position;
+                    const { angle } = body;
+                    const tagData = body.plugin;
+                    const isSelected = selectedTagIds.has(tagData.id);
 
-                // Calculate text width to center it
-                const textWidth = font.getTextWidth(label);
-                const textX = -textWidth / 2 + 10; // Offset for icon
-                const textY = font.getSize() / 3;
+                    const baseColor = tagData.color || '#ccc';
+                    const displayColor = isSelected ? '#4a90e2' : baseColor;
+                    const textColor = isSelected ? '#fff' : '#333';
 
-                return (
-                    <Group
-                        key={body.id}
-                        origin={vec(x, y)}
-                        transform={[{ rotate: angle }]}
-                    >
-                        {/* Shadow for depth */}
-                        <Group>
-                            <RoundedRect
-                                x={x - TAG_WIDTH / 2}
-                                y={y - TAG_HEIGHT / 2}
-                                width={TAG_WIDTH}
-                                height={TAG_HEIGHT}
-                                r={TAG_RADIUS}
-                                color={color}
-                            >
-                                <Shadow dx={2} dy={2} blur={4} color="rgba(0,0,0,0.1)" />
-                            </RoundedRect>
+                    const textWidth = font.getTextWidth(tagData.label || '');
+                    const textX = -textWidth / 2 + 10;
+                    const textY = font.getSize() / 3;
+
+                    return (
+                        <Group
+                            key={body.id}
+                            origin={vec(x, y)}
+                            transform={[{ rotate: angle }]}
+                        >
+                            <Group>
+                                <RoundedRect
+                                    x={x - TAG_WIDTH / 2}
+                                    y={y - TAG_HEIGHT / 2}
+                                    width={TAG_WIDTH}
+                                    height={TAG_HEIGHT}
+                                    r={TAG_RADIUS}
+                                    color={displayColor}
+                                >
+                                    <Shadow dx={2} dy={2} blur={4} color="rgba(0,0,0,0.1)" />
+                                    {isSelected && <Shadow dx={0} dy={0} blur={8} color="#4a90e2" />}
+                                </RoundedRect>
+                            </Group>
+
+                            <Group transform={[{ translateX: x - TAG_WIDTH / 2 + 20 }, { translateY: y }]}>
+                                <RoundedRect x={-10} y={-10} width={20} height={20} r={10} color={isSelected ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.1)"} />
+                            </Group>
+
+                            <Text
+                                x={x + textX}
+                                y={y + textY}
+                                text={tagData.label}
+                                font={font}
+                                color={textColor}
+                            />
                         </Group>
-
-                        {/* Icon Placeholder (Circle) */}
-                        <Group transform={[{ translateX: x - TAG_WIDTH / 2 + 20 }, { translateY: y }]}>
-                            <RoundedRect x={-10} y={-10} width={20} height={20} r={10} color="rgba(0,0,0,0.1)" />
-                        </Group>
-
-                        {/* Label */}
-                        <Text
-                            x={x + textX}
-                            y={y + textY}
-                            text={label}
-                            font={font}
-                            color="#333"
-                        />
-                    </Group>
-                );
-            })}
-        </Canvas>
+                    );
+                })}
+            </Canvas>
+        </GestureDetector>
     );
 }
