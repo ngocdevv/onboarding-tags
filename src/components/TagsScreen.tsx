@@ -99,7 +99,6 @@ const styles = StyleSheet.create({
     physicsContainer: {
         flex: 1,
         // PhysicsWorld inside will take full width/height
-        marginHorizontal: -24, // extend to edges for physics boundary
         marginBottom: 16,
     },
     buttonContainer: {
