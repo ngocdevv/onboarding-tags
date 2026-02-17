@@ -12,10 +12,13 @@ const iconFontFile = require('../../node_modules/@expo/vector-icons/build/vendor
 
 // Physics Configuration
 const ENGINE_UPDATE_DELTA = 1000 / 60;
-const TAG_WIDTH = 100;
 const TAG_HEIGHT = 44;
 const TAG_RADIUS = 22;
-const GAP = 2; // Visual gap (physics size vs render size)
+const GAP = 2;
+// Layout: [padding] [icon 16px] [gap 8px] [label] [padding]
+const ICON_AREA = 32; // left padding (12) + icon (16) + gap (4)
+const H_PADDING = 16; // right padding
+const MIN_TAG_WIDTH = 80;
 
 export default function PhysicsWorld() {
     const { width, height } = useWindowDimensions();
@@ -34,7 +37,7 @@ export default function PhysicsWorld() {
     const iconFont = useFont(iconFontFile, 16);
 
     useEffect(() => {
-        if (!width || !height) return;
+        if (!width || !height || !font) return;
 
         const engine = Matter.Engine.create();
         const world = engine.world;
@@ -49,10 +52,13 @@ export default function PhysicsWorld() {
 
         const tagBodies: Matter.Body[] = [];
         TAGS.forEach((tag, index) => {
-            const x = Math.random() * (width - 100) + 50;
+            // Dynamic width based on label text
+            const textWidth = font.getTextWidth(tag.label);
+            const tagWidth = Math.max(MIN_TAG_WIDTH, ICON_AREA + textWidth + H_PADDING);
+
+            const x = Math.random() * (width - tagWidth) + tagWidth / 2;
             const y = -200 - (index * 80);
-            // Physics body is slightly larger than render to create "gap" visual
-            const body = Matter.Bodies.rectangle(x, y, TAG_WIDTH + GAP, TAG_HEIGHT + GAP, {
+            const body = Matter.Bodies.rectangle(x, y, tagWidth + GAP, TAG_HEIGHT + GAP, {
                 chamfer: { radius: TAG_RADIUS },
                 restitution: 0.6,
                 friction: 0.5,
@@ -63,7 +69,8 @@ export default function PhysicsWorld() {
                     id: tag.id,
                     color: tag.color,
                     label: tag.label,
-                    icon: tag.icon
+                    icon: tag.icon,
+                    tagWidth,
                 }
             });
             tagBodies.push(body);
@@ -85,7 +92,7 @@ export default function PhysicsWorld() {
             running = false;
             Matter.Engine.clear(engine);
         };
-    }, [width, height]);
+    }, [width, height, font]);
 
     const handleTap = (x: number, y: number) => {
         if (!physicsRef) return;
@@ -125,9 +132,11 @@ export default function PhysicsWorld() {
                     const tagData = body.plugin;
                     const isSelected = selectedTagIds.has(tagData.id);
 
-                    const iconOffset = tagData.icon ? 14 : 0; // shift text right when icon present
-                    const textWidth = font.getTextWidth(tagData.label || '');
-                    const textX = -textWidth / 2 + iconOffset;
+                    // Dynamic width from physics plugin
+                    const tagW = tagData.tagWidth || MIN_TAG_WIDTH;
+                    const leftEdge = x - tagW / 2;
+                    const ICON_X = leftEdge + 12;
+                    const LABEL_X = leftEdge + ICON_AREA;
                     const textY = font.getSize() / 3;
 
                     return (
@@ -138,9 +147,9 @@ export default function PhysicsWorld() {
                         >
                             <Group>
                                 <RoundedRect
-                                    x={x - TAG_WIDTH / 2}
+                                    x={leftEdge}
                                     y={y - TAG_HEIGHT / 2}
-                                    width={TAG_WIDTH}
+                                    width={tagW}
                                     height={TAG_HEIGHT}
                                     r={TAG_RADIUS}
                                     color={tagData.color || '#ccc'}
@@ -148,17 +157,11 @@ export default function PhysicsWorld() {
                                     <Shadow dx={2} dy={2} blur={4} color="rgba(0,0,0,0.1)" />
                                 </RoundedRect>
 
-                                {/*
-                  If selected, we need to draw the border stroke with 'black'.
-                  The above RoundedRect sets style='stroke' so color controls stroke color.
-                  Wait, if I set color transparent above, stroke will be transparent.
-                  I need separate logic or simply change color prop based on selection.
-                */}
                                 {isSelected && (
                                     <RoundedRect
-                                        x={x - TAG_WIDTH / 2}
+                                        x={leftEdge}
                                         y={y - TAG_HEIGHT / 2}
-                                        width={TAG_WIDTH}
+                                        width={tagW}
                                         height={TAG_HEIGHT}
                                         r={TAG_RADIUS}
                                         color="black"
@@ -171,7 +174,7 @@ export default function PhysicsWorld() {
                             {/* Icon from MaterialCommunityIcons */}
                             {tagData.icon && ICON_GLYPHS[tagData.icon] && (
                                 <Text
-                                    x={x - TAG_WIDTH / 2 + 12}
+                                    x={ICON_X}
                                     y={y + iconFont.getSize() / 3}
                                     text={ICON_GLYPHS[tagData.icon]}
                                     font={iconFont}
@@ -180,7 +183,7 @@ export default function PhysicsWorld() {
                             )}
 
                             <Text
-                                x={x + textX}
+                                x={LABEL_X}
                                 y={y + textY}
                                 text={tagData.label}
                                 font={font}
