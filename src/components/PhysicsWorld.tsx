@@ -1,7 +1,7 @@
-import { Canvas, Group, RoundedRect, Shadow, Text, matchFont, useFont, vec } from '@shopify/react-native-skia';
+import { Canvas, Group, RoundedRect, Text, matchFont, useFont, vec } from '@shopify/react-native-skia';
 import Matter from 'matter-js';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, useWindowDimensions } from 'react-native';
+import { LayoutChangeEvent, Platform, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import { ICON_GLYPHS, TAGS } from '../constants/Tags';
@@ -21,7 +21,7 @@ const H_PADDING = 16; // right padding
 const MIN_TAG_WIDTH = 80;
 
 export default function PhysicsWorld() {
-    const { width, height } = useWindowDimensions();
+    const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
     const [bodies, setBodies] = useState<Matter.Body[]>([]);
     const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
     const [physicsRef, setPhysicsRef] = useState<{ engine: Matter.Engine, world: Matter.World } | null>(null);
@@ -36,14 +36,22 @@ export default function PhysicsWorld() {
 
     const iconFont = useFont(iconFontFile, 16);
 
+    const onLayout = (event: LayoutChangeEvent) => {
+        const { width, height } = event.nativeEvent.layout;
+        setDimensions({ width, height });
+    };
+
     useEffect(() => {
-        if (!width || !height || !font) return;
+        if (!dimensions || !font) return;
+
+        const { width, height } = dimensions;
 
         const engine = Matter.Engine.create();
         const world = engine.world;
-        engine.gravity.y = 0.8;
+        engine.gravity.y = 0.5; // Reduced gravity for smoother feel
 
-        const ground = Matter.Bodies.rectangle(width / 2, height - 100, width, 200, { isStatic: true, label: 'Ground' });
+        // Add walls and ground based on container dimensions
+        const ground = Matter.Bodies.rectangle(width / 2, height + 50, width, 100, { isStatic: true, label: 'Ground' });
         const wallThickness = 100;
         const leftWall = Matter.Bodies.rectangle(0 - wallThickness / 2, height / 2, wallThickness, height * 2, { isStatic: true });
         const rightWall = Matter.Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height * 2, { isStatic: true });
@@ -57,7 +65,7 @@ export default function PhysicsWorld() {
             const tagWidth = Math.max(MIN_TAG_WIDTH, ICON_AREA + textWidth + H_PADDING);
 
             const x = Math.random() * (width - tagWidth) + tagWidth / 2;
-            const y = -200 - (index * 80);
+            const y = -100 - (index * 60); // Start falling from above
             const body = Matter.Bodies.rectangle(x, y, tagWidth + GAP, TAG_HEIGHT + GAP, {
                 chamfer: { radius: TAG_RADIUS },
                 restitution: 0.6,
@@ -92,7 +100,7 @@ export default function PhysicsWorld() {
             running = false;
             Matter.Engine.clear(engine);
         };
-    }, [width, height, font]);
+    }, [dimensions, font]);
 
     const handleTap = (x: number, y: number) => {
         if (!physicsRef) return;
@@ -122,77 +130,79 @@ export default function PhysicsWorld() {
     if (!font || !iconFont) return null;
 
     return (
-        <GestureDetector gesture={tapGesture}>
-            <Canvas style={{ flex: 1 }}>
-                {bodies.map((body, index) => {
-                    if (body.isStatic) return null;
+        <View style={{ flex: 1 }} onLayout={onLayout}>
+            {dimensions && (
+                <GestureDetector gesture={tapGesture}>
+                    <Canvas style={{ flex: 1 }}>
+                        {bodies.map((body, index) => {
+                            if (body.isStatic) return null;
 
-                    const { x, y } = body.position;
-                    const { angle } = body;
-                    const tagData = body.plugin;
-                    const isSelected = selectedTagIds.has(tagData.id);
+                            const { x, y } = body.position;
+                            const { angle } = body;
+                            const tagData = body.plugin;
+                            const isSelected = selectedTagIds.has(tagData.id);
 
-                    // Dynamic width from physics plugin
-                    const tagW = tagData.tagWidth || MIN_TAG_WIDTH;
-                    const leftEdge = x - tagW / 2;
-                    const ICON_X = leftEdge + 12;
-                    const LABEL_X = leftEdge + ICON_AREA;
-                    const textY = font.getSize() / 3;
+                            // Dynamic width from physics plugin
+                            const tagW = tagData.tagWidth || MIN_TAG_WIDTH;
+                            const leftEdge = x - tagW / 2;
+                            const ICON_X = leftEdge + 12;
+                            const LABEL_X = leftEdge + ICON_AREA;
+                            const textY = font.getSize() / 3;
 
-                    return (
-                        <Group
-                            key={body.id}
-                            origin={vec(x, y)}
-                            transform={[{ rotate: angle }]}
-                        >
-                            <Group>
-                                <RoundedRect
-                                    x={leftEdge}
-                                    y={y - TAG_HEIGHT / 2}
-                                    width={tagW}
-                                    height={TAG_HEIGHT}
-                                    r={TAG_RADIUS}
-                                    color={tagData.color || '#ccc'}
+                            return (
+                                <Group
+                                    key={body.id}
+                                    origin={vec(x, y)}
+                                    transform={[{ rotate: angle }]}
                                 >
-                                    <Shadow dx={2} dy={2} blur={4} color="rgba(0,0,0,0.1)" />
-                                </RoundedRect>
+                                    <Group>
+                                        <RoundedRect
+                                            x={leftEdge}
+                                            y={y - TAG_HEIGHT / 2}
+                                            width={tagW}
+                                            height={TAG_HEIGHT}
+                                            r={TAG_RADIUS}
+                                            color={tagData.color || '#ccc'}
+                                        />
 
-                                {isSelected && (
-                                    <RoundedRect
-                                        x={leftEdge}
-                                        y={y - TAG_HEIGHT / 2}
-                                        width={tagW}
-                                        height={TAG_HEIGHT}
-                                        r={TAG_RADIUS}
-                                        color="black"
-                                        style="stroke"
-                                        strokeWidth={2}
+                                        {isSelected && (
+                                            <RoundedRect
+                                                x={leftEdge}
+                                                y={y - TAG_HEIGHT / 2}
+                                                width={tagW}
+                                                height={TAG_HEIGHT}
+                                                r={TAG_RADIUS}
+                                                color="black"
+                                                style="stroke"
+                                                strokeWidth={2}
+                                            />
+                                        )}
+                                    </Group>
+
+                                    {/* Icon from MaterialCommunityIcons */}
+                                    {tagData.icon && ICON_GLYPHS[tagData.icon] && (
+                                        <Text
+                                            x={ICON_X}
+                                            y={y + iconFont.getSize() / 3}
+                                            text={ICON_GLYPHS[tagData.icon]}
+                                            font={iconFont}
+                                            color="#555"
+                                        />
+                                    )}
+
+                                    <Text
+                                        x={LABEL_X}
+                                        y={y + textY}
+                                        text={tagData.label}
+                                        font={font}
+                                        color="#333"
                                     />
-                                )}
-                            </Group>
-
-                            {/* Icon from MaterialCommunityIcons */}
-                            {tagData.icon && ICON_GLYPHS[tagData.icon] && (
-                                <Text
-                                    x={ICON_X}
-                                    y={y + iconFont.getSize() / 3}
-                                    text={ICON_GLYPHS[tagData.icon]}
-                                    font={iconFont}
-                                    color="#555"
-                                />
-                            )}
-
-                            <Text
-                                x={LABEL_X}
-                                y={y + textY}
-                                text={tagData.label}
-                                font={font}
-                                color="#333"
-                            />
-                        </Group>
-                    );
-                })}
-            </Canvas>
-        </GestureDetector>
+                                </Group>
+                            );
+                        })}
+                    </Canvas>
+                </GestureDetector>
+            )}
+        </View>
     );
 }
