@@ -1,0 +1,17 @@
+export const TAGS = [
+    { id: '1', label: 'Code', color: '#ffe4e1', icon: 'code' },
+    { id: '2', label: 'Design', color: '#fffacd', icon: 'pen-tool' },
+    { id: '3', label: 'Music', color: '#e0ffff', icon: 'music' },
+    { id: '4', label: 'Travel', color: '#f0e68c', icon: 'plane' },
+    { id: '5', label: 'Finance', color: '#dda0dd', icon: 'dollar-sign' },
+    { id: '6', label: 'Cook', color: '#90ee90', icon: 'chef-hat' },
+    { id: '7', label: 'Meditate', color: '#add8e6', icon: 'flower' },
+    { id: '8', label: 'Work', color: '#ffb6c1', icon: 'briefcase' },
+    { id: '9', label: 'Learn', color: '#fafad2', icon: 'book' },
+    { id: '10', label: 'Exercise', color: '#87cefa', icon: 'activity' },
+    { id: '11', label: 'Photo', color: '#d3d3d3', icon: 'camera' },
+    { id: '12', label: 'Garden', color: '#98fb98', icon: 'sprout' },
+    { id: '13', label: 'Explore', color: '#afeeee', icon: 'compass' },
+    { id: '14', label: 'Write', color: '#ffdead', icon: 'edit' },
+    { id: '15', label: 'Research', color: '#e6e6fa', icon: 'search' },
+];
