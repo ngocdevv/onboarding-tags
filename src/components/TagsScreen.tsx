@@ -5,6 +5,7 @@ import {
     Text,
     View,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PhysicsWorld from './PhysicsWorld';
 
@@ -18,7 +19,8 @@ export default function TagsScreen({ onContinue }: Props) {
     return (
         <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 16 }]}>
             {/* Progress Bar */}
-            <View style={styles.progressContainer}>
+            <Animated.View style={styles.progressContainer}
+                entering={FadeInUp.delay(300).duration(800).springify()}>
                 {[...Array(5)].map((_, index) => (
                     <View
                         key={index}
@@ -28,16 +30,18 @@ export default function TagsScreen({ onContinue }: Props) {
                         ]}
                     />
                 ))}
-            </View>
+            </Animated.View>
 
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.title}>
+                <Animated.Text style={styles.title}
+                    entering={FadeInDown.delay(500).duration(800).springify()}>
                     Build Around{'\n'}What You Love 💡
-                </Text>
-                <Text style={styles.subtitle}>
+                </Animated.Text>
+                <Animated.Text style={styles.subtitle}
+                    entering={FadeInDown.delay(600).duration(800).springify()}>
                     Choosing activities helps you track{'\n'}progress and stay motivated every day
-                </Text>
+                </Animated.Text>
             </View>
 
             {/* Physics Tags Area */}
@@ -46,14 +50,14 @@ export default function TagsScreen({ onContinue }: Props) {
             </View>
 
             {/* Continue Button */}
-            <View style={styles.buttonContainer}>
+            <Animated.View style={styles.buttonContainer} entering={FadeInDown.delay(600).duration(800).springify()}>
                 <Pressable
                     style={({ pressed }) => [styles.continueButton, pressed && styles.buttonPressed]}
                     onPress={onContinue}
                 >
                     <Text style={styles.continueText}>Continue</Text>
                 </Pressable>
-            </View>
+            </Animated.View>
         </View>
     );
 }
