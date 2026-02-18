@@ -1,9 +1,10 @@
 import { Canvas, Group, RoundedRect, Text, matchFont, useFont, vec } from '@shopify/react-native-skia';
 import Matter from 'matter-js';
 import React, { useEffect, useMemo, useState } from 'react';
-import { LayoutChangeEvent, Platform, View } from 'react-native';
+import { LayoutChangeEvent, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ICON_GLYPHS, TAGS } from '../constants/Tags';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -21,6 +22,7 @@ const H_PADDING = 16; // right padding
 const MIN_TAG_WIDTH = 80;
 
 export default function PhysicsWorld() {
+    const insets = useSafeAreaInsets();
     const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
     const [bodies, setBodies] = useState<Matter.Body[]>([]);
     const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
@@ -123,8 +125,8 @@ export default function PhysicsWorld() {
         }
     };
 
-    const tapGesture = Gesture.Tap().onStart((e) => {
-        runOnJS(handleTap)(e.x, e.y);
+    const tapGesture = Gesture.Tap().runOnJS(true).onStart((e) => {
+        handleTap(e.x, e.y);
     });
 
     if (!font || !iconFont) return null;
@@ -132,77 +134,143 @@ export default function PhysicsWorld() {
     return (
         <View style={{ flex: 1 }} onLayout={onLayout}>
             {dimensions && (
-                <GestureDetector gesture={tapGesture}>
-                    <Canvas style={{ flex: 1 }}>
-                        {bodies.map((body, index) => {
-                            if (body.isStatic) return null;
+                <>
+                    <GestureDetector gesture={tapGesture}>
+                        <Canvas style={[StyleSheet.absoluteFill, { bottom: -12 }]}>
+                            {bodies.map((body, index) => {
+                                if (body.isStatic) return null;
 
-                            const { x, y } = body.position;
-                            const { angle } = body;
-                            const tagData = body.plugin;
-                            const isSelected = selectedTagIds.has(tagData.id);
+                                const { x, y } = body.position;
+                                const { angle } = body;
+                                const tagData = body.plugin;
+                                const isSelected = selectedTagIds.has(tagData.id);
 
-                            // Dynamic width from physics plugin
-                            const tagW = tagData.tagWidth || MIN_TAG_WIDTH;
-                            const leftEdge = x - tagW / 2;
-                            const ICON_X = leftEdge + 12;
-                            const LABEL_X = leftEdge + ICON_AREA;
-                            const textY = font.getSize() / 3;
+                                // Dynamic width from physics plugin
+                                const tagW = tagData.tagWidth || MIN_TAG_WIDTH;
+                                const leftEdge = x - tagW / 2;
+                                const ICON_X = leftEdge + 12;
+                                const LABEL_X = leftEdge + ICON_AREA;
+                                const textY = font.getSize() / 3;
 
-                            return (
-                                <Group
-                                    key={body.id}
-                                    origin={vec(x, y)}
-                                    transform={[{ rotate: angle }]}
-                                >
-                                    <Group>
-                                        <RoundedRect
-                                            x={leftEdge}
-                                            y={y - TAG_HEIGHT / 2}
-                                            width={tagW}
-                                            height={TAG_HEIGHT}
-                                            r={TAG_RADIUS}
-                                            color={tagData.color || '#ccc'}
-                                        />
-
-                                        {isSelected && (
+                                return (
+                                    <Group
+                                        key={body.id}
+                                        origin={vec(x, y)}
+                                        transform={[{ rotate: angle }]}
+                                    >
+                                        <Group>
                                             <RoundedRect
                                                 x={leftEdge}
                                                 y={y - TAG_HEIGHT / 2}
                                                 width={tagW}
                                                 height={TAG_HEIGHT}
                                                 r={TAG_RADIUS}
-                                                color="black"
-                                                style="stroke"
-                                                strokeWidth={2}
+                                                color={tagData.color || '#ccc'}
+                                            />
+
+                                            {isSelected && (
+                                                <RoundedRect
+                                                    x={leftEdge}
+                                                    y={y - TAG_HEIGHT / 2}
+                                                    width={tagW}
+                                                    height={TAG_HEIGHT}
+                                                    r={TAG_RADIUS}
+                                                    color="black"
+                                                    style="stroke"
+                                                    strokeWidth={2}
+                                                />
+                                            )}
+                                        </Group>
+
+                                        {/* Icon from MaterialCommunityIcons */}
+                                        {tagData.icon && ICON_GLYPHS[tagData.icon] && (
+                                            <Text
+                                                x={ICON_X}
+                                                y={y + iconFont.getSize() / 3}
+                                                text={ICON_GLYPHS[tagData.icon]}
+                                                font={iconFont}
+                                                color="#555"
                                             />
                                         )}
-                                    </Group>
 
-                                    {/* Icon from MaterialCommunityIcons */}
-                                    {tagData.icon && ICON_GLYPHS[tagData.icon] && (
                                         <Text
-                                            x={ICON_X}
-                                            y={y + iconFont.getSize() / 3}
-                                            text={ICON_GLYPHS[tagData.icon]}
-                                            font={iconFont}
-                                            color="#555"
+                                            x={LABEL_X}
+                                            y={y + textY}
+                                            text={tagData.label}
+                                            font={font}
+                                            color="#333"
                                         />
-                                    )}
+                                    </Group>
+                                );
+                            })}
+                        </Canvas>
+                    </GestureDetector>
 
-                                    <Text
-                                        x={LABEL_X}
-                                        y={y + textY}
-                                        text={tagData.label}
-                                        font={font}
-                                        color="#333"
-                                    />
-                                </Group>
-                            );
-                        })}
-                    </Canvas>
-                </GestureDetector>
+                    {/* Content Overlay */}
+                    <View style={{ paddingTop: insets.top + 10 }} pointerEvents="box-none">
+                        {/* Progress Bar */}
+                        <Animated.View style={styles.progressContainer}
+                            entering={FadeInUp.delay(300).duration(800).springify()}>
+                            {[...Array(5)].map((_, index) => (
+                                <View
+                                    key={index}
+                                    style={[
+                                        styles.progressSegment,
+                                        index === 0 ? styles.progressActive : styles.progressInactive
+                                    ]}
+                                />
+                            ))}
+                        </Animated.View>
+
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <Animated.Text style={styles.title}
+                                entering={FadeInDown.delay(500).duration(800).springify()}>
+                                Build Around{'\n'}What You Love 💡
+                            </Animated.Text>
+                            <Animated.Text style={styles.subtitle}
+                                entering={FadeInDown.delay(600).duration(800).springify()}>
+                                Choosing activities helps you track{'\n'}progress and stay motivated every day
+                            </Animated.Text>
+                        </View>
+                    </View>
+                </>
             )}
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    progressContainer: {
+        flexDirection: 'row',
+        gap: 6,
+        marginBottom: 32,
+    },
+    progressSegment: {
+        flex: 1,
+        height: 6,
+        borderRadius: 3,
+    },
+    progressActive: {
+        backgroundColor: '#1A1A1A',
+    },
+    progressInactive: {
+        backgroundColor: '#F0F0F0',
+    },
+    header: {
+        gap: 12,
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        lineHeight: 34,
+        letterSpacing: -0.5,
+    },
+    subtitle: {
+        fontSize: 15,
+        color: '#666',
+        lineHeight: 22,
+    },
+});

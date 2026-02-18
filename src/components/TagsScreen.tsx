@@ -5,7 +5,7 @@ import {
     Text,
     View,
 } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PhysicsWorld from './PhysicsWorld';
 
@@ -17,40 +17,14 @@ export default function TagsScreen({ onContinue }: Props) {
     const insets = useSafeAreaInsets();
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 16 }]}>
-            {/* Progress Bar */}
-            <Animated.View style={styles.progressContainer}
-                entering={FadeInUp.delay(300).duration(800).springify()}>
-                {[...Array(5)].map((_, index) => (
-                    <View
-                        key={index}
-                        style={[
-                            styles.progressSegment,
-                            index === 0 ? styles.progressActive : styles.progressInactive
-                        ]}
-                    />
-                ))}
-            </Animated.View>
-
-            {/* Header */}
-            <View style={styles.header}>
-                <Animated.Text style={styles.title}
-                    entering={FadeInDown.delay(500).duration(800).springify()}>
-                    Build Around{'\n'}What You Love 💡
-                </Animated.Text>
-                <Animated.Text style={styles.subtitle}
-                    entering={FadeInDown.delay(600).duration(800).springify()}>
-                    Choosing activities helps you track{'\n'}progress and stay motivated every day
-                </Animated.Text>
-            </View>
-
-            {/* Physics Tags Area */}
-            <View style={styles.physicsContainer}>
+        <View style={styles.container}>
+            <View style={styles.content}>
                 <PhysicsWorld />
             </View>
-
-            {/* Continue Button */}
-            <Animated.View style={styles.buttonContainer} entering={FadeInDown.delay(600).duration(800).springify()}>
+            <Animated.View
+                style={[styles.buttonContainer, { paddingBottom: insets.bottom + 16 }]}
+                entering={FadeInDown.delay(600).duration(800).springify()}
+            >
                 <Pressable
                     style={({ pressed }) => [styles.continueButton, pressed && styles.buttonPressed]}
                     onPress={onContinue}
@@ -66,46 +40,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
+    },
+    content: {
+        flex: 1,
         paddingHorizontal: 24,
     },
-    progressContainer: {
-        flexDirection: 'row',
-        gap: 6,
-        marginBottom: 32,
-    },
-    progressSegment: {
-        flex: 1,
-        height: 6,
-        borderRadius: 3,
-    },
-    progressActive: {
-        backgroundColor: '#1A1A1A',
-    },
-    progressInactive: {
-        backgroundColor: '#F0F0F0',
-    },
-    header: {
-        gap: 12,
-        marginBottom: 24,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '800',
-        color: '#1A1A1A',
-        lineHeight: 34,
-        letterSpacing: -0.5,
-    },
-    subtitle: {
-        fontSize: 15,
-        color: '#666',
-        lineHeight: 22,
-    },
-    physicsContainer: {
-        flex: 1,
-        // PhysicsWorld inside will take full width/height
-        marginBottom: 16,
-    },
     buttonContainer: {
+        paddingHorizontal: 24,
         paddingTop: 16,
     },
     continueButton: {
