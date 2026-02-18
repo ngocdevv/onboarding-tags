@@ -30,7 +30,9 @@ export default function TabLayout() {
         )}
 
         {onboardingStep === 1 && (
-          <TagsScreen onContinue={handleTagsContinue} />
+          <TagsScreen onContinue={() => {
+
+          }} />
         )}
 
         {onboardingStep === 2 && (
